@@ -9,16 +9,16 @@ const UserSchema = mongoose.Schema(
       trim: true,
     },
 
-    email : {
+    email: {
       type: String,
       sparse: true, // null / missing value skip করবে
       trim: true,
-     required: function () {
+      required: function () {
         return !this.phone; // phone না থাকলে email লাগবে
       },
     },
 
-     phone : {
+    phone: {
       type: String,
       sparse: true, // null / missing value skip করবে
       trim: true,
@@ -27,10 +27,10 @@ const UserSchema = mongoose.Schema(
       },
     },
 
-    password : {
-       type : String,
-       required : true,
-       trim : true,
+    password: {
+      type: String,
+      required: true,
+      trim: true,
     },
 
     photo: {
@@ -69,27 +69,32 @@ const UserSchema = mongoose.Schema(
     },
 
     bloodGroup: {
-      type: String,
+      type: [String],
       default: null,
       trim: true,
     },
 
     lastDonation: {
+      type: Date,
+      default: null,
+      trim: true,
+    },
+
+    accessToken : {
       type: String,
       default: null,
       trim: true,
+    },
+
+    otpExpiresAt: { 
+      type: Date, 
+      index: true 
     },
 
     role: {
       type: String,
       default: "patient",
       enum: ["patient", "donor", "admin"],
-    },
-
-    accessToken: {
-      type: String,
-      default : null,
-      trim: true,
     },
 
     isActivate: {
@@ -111,6 +116,12 @@ const UserSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    // resetPasswordToken : String,
+    // resetPasswordExpiresAt : Date,
+    // verificationToken : String,
+    // verificationTokenExpiresAt : Date,
+
   },
   { timestamps: true }
 );

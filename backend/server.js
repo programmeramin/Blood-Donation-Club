@@ -1,6 +1,7 @@
 import express from "express";
 import colors from "colors";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 import { MongoDBConnect } from "./config/MongoDB.js";
 import authRoute from "./route/authRoute.js"
 import errorHandler from "./middleware/errorHandler.js";
@@ -18,6 +19,7 @@ const PORT = process.env.PORT || 8080;
 // Set middlewares
 app.use(express.json());
 app.use(express.urlencoded({extended : false}));
+app.use(cookieParser())
 
 // static folder
 app.use(express.static("public"));
