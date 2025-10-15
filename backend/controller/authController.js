@@ -288,11 +288,20 @@ export const changepassword = asyncHandler(async (req, res) => {
     res.status(400).json({ message: "Password didn't match" });
   }
 
+  // ensure req.me is not null
+  if(!req.me){
+    return res.status(401).json({message : "Unauthorized"})
+  }
+
   // get login user data
   const userData = await User.findById(req.me._id);
 
+  if(!userData){
+    return res.status(404).json({message : "User not found"})
+  }
+
   // check old Password
-  const passwordCheck = bcrypt.compareSync(oldPassword, userData.password);
+  const passwordCheck = await bcrypt.compare(oldPassword, userData.password);
 
   if (!passwordCheck) {
     return res.status(400).json({ message: "Wrong old password" });

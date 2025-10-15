@@ -49,7 +49,9 @@ const VerifyEmailOtp = async (email, data) => {
   });
 };
 
+// export default
 export default VerifyEmailOtp;
+
 
 // forgot password send otp
 export const ForgotPasswordOtp = async (email, data) => {
@@ -84,7 +86,7 @@ export const ForgotPasswordOtp = async (email, data) => {
     <p>Thank you for resetting password! Your verification code is:</p>
     <div style="text-align: center; margin: 30px 0;">
       <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4CAF50;">${data.code}</span>
-    </div>
+    </div>  
     <p>Enter this code on the verification page to complete your reset password.</p>
     <p>This code will expire in 5 minutes for security reasons.</p>
     <p>Best regards,<br>Your App Team</p>

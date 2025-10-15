@@ -20,9 +20,10 @@ router.post("/verify-otp", verifyOtp);
 router.post("/login", login);
 router.get("/me", tokenVerify, getLoggedInUser);
 router.post("/logout", logOut);
-router.post("/change-password", tokenVerify, changepassword);
+router.put("/change-password", tokenVerify, changepassword);
 router.post("/forgot-password", forgotpassword);
 router.post("/reset-password", resetpassword);
+
 
 // export router
 export default router;
