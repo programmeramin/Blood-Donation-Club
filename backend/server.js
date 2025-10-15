@@ -7,7 +7,7 @@ import authRoute from "./route/authRoute.js";
 import searchRoute from "./route/donorRoute.js";
 import errorHandler from "./middleware/errorHandler.js";
 
-
+ 
 // initialize app
 const app = express();
 
