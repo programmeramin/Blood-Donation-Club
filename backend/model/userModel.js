@@ -29,7 +29,7 @@ const UserSchema = mongoose.Schema(
 
     password: {
       type: String,
-      required: true,
+      default : null,
       trim: true,
     },
 
@@ -39,10 +39,16 @@ const UserSchema = mongoose.Schema(
       trim: true,
     },
 
-    location: {
+    district : {
       type: String,
       default: null,
       trim: true,
+    },
+
+    subDistrict : {
+      type : String,
+      default : null,
+      trim : true,
     },
 
     profession: {

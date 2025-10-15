@@ -3,7 +3,7 @@ import asyncHandler from "express-async-handler";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { createOTP, isEmail, isMobile } from "../helper/helper.js";
-import VerifyEmailOtp from "../mails/VerifyEmailOtp.js";
+import VerifyEmailOtp, { ForgotPasswordOtp } from "../mails/VerifyEmailOtp.js";
 import axios from "axios";
 
 /**
@@ -43,7 +43,7 @@ export const registerUser = asyncHandler(async (req, res) => {
       return res.status(400).json({ message: "Email already existance" });
     }
   } else if (isMobile(auth)) {
-    authPhone = auth.replace(/^0/, "+880");
+    authPhone = auth;
 
     // check phone existance
     const checkMobile = await User.findOne({ phone: authPhone });
@@ -60,7 +60,7 @@ export const registerUser = asyncHandler(async (req, res) => {
   const hassPassword = await bcrypt.hash(password, 10);
 
   // otp verification expires date
-  const otpExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes
+  const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
   // user create
   const user = await User.create({
@@ -76,10 +76,10 @@ export const registerUser = asyncHandler(async (req, res) => {
   if (user) {
     // send token to cookie
     const activationToken = jwt.sign(
-      { userId : user._id },
+      { userId: user._id },
       process.env.ACCOUNT_ACTIVATION_SECRET,
       {
-        expiresIn: "15min",
+        expiresIn: 1000 * 60 * 60 * 24 * 365,
       }
     );
 
@@ -129,7 +129,7 @@ export const verifyOtp = asyncHandler(async (req, res) => {
 
   // 1️⃣ Read activationToken from HTTP-only cookie
   const activationToken = req.cookies.activationToken;
-  
+
   if (!activationToken)
     return res.status(401).json({ message: "Activation token missing" });
 
@@ -175,7 +175,6 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   res.status(200).json({ message: "Account verified successfully" });
 });
 
-
 /**
  * @description login user
  * @method POST
@@ -183,16 +182,246 @@ export const verifyOtp = asyncHandler(async (req, res) => {
  * @route api/v1/auth/login
  */
 
-export const login = asyncHandler(async(req, res) =>{
-
-  const  {auth, password} = req.body();
+export const login = asyncHandler(async (req, res) => {
+  const { auth, password } = req.body;
 
   // all field validation
-  if(!auth || !password){
-    return res.status(400).json({message : "All fields are required"})
+  if (!auth || !password) {
+    return res.status(400).json({ message: "All fields are required" });
   }
 
+  let loginUser = null;
+
+  if (isEmail(auth)) {
+    loginUser = await User.findOne({ email: auth });
+
+    if (!loginUser) {
+      return res.status(400).json({ message: "Email user not found" });
+    }
+  } else if (isMobile(auth)) {
+    loginUser = await User.findOne({ phone: auth });
+
+    if (!loginUser) {
+      return res.status(400).json({ message: "Mobile user not found" });
+    }
+  } else {
+    return res.status(400).json({ message: "Email or Mobile user not found" });
+  }
+
+  // password check
+  const validPassword = await bcrypt.compare(password, loginUser.password);
+
+  if (!validPassword) {
+    return res.status(400).json({ message: "Wrong password" });
+  }
+
+  const loginUserToken = jwt.sign(
+    { auth: loginUser.auth },
+    process.env.USER_LOGN_SECRET,
+    { expiresIn: "365d" }
+  );
+
+  res.cookie("loginUserToken", loginUserToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV == "development" ? false : true,
+    sameSite: "strict",
+    path: "/",
+    maxAge: 1000 * 60 * 60 * 24 * 365,
+  });
+
+  res.status(200).json({ message: "User login successfull" });
+});
+
+/**
+ * @description logout user
+ * @method get
+ * @access public
+ * @route api/v1/auth/logout
+ */
+
+export const logOut = asyncHandler(async (req, res) => {
+  res.clearCookie("loginUserToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "development" ? false : true,
+    sameSite: "strict",
+    path: "/", // অবশ্যই include করো
+  });
+
+  res.status(200).json({ message: "Logout successful ✅" });
+});
+
+/**
+ * @description getLoggedUser
+ * @method get
+ * @access logged in user
+ * @route api/v1/auth/token-verify
+ */
+
+export const getLoggedInUser = asyncHandler(async (req, res) => {
+  if (!req.me) {
+    return res.status(404).json({ message: "Logged In User not found" });
+  }
+
+  res.status(200).json({
+    auth: req.me,
+    message: "User fetched successfully",
+  });
+});
+
+/**
+ * @description change password
+ * @method POST
+ * @access  public
+ * @route api/v1/auth/change-password
+ */
+
+export const changepassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword, conPassword } = req.body;
+
+  // all fields check
+  if (!oldPassword || !newPassword || !conPassword) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  // check newpasword equal conpassword
+  if (newPassword !== conPassword) {
+    res.status(400).json({ message: "Password didn't match" });
+  }
+
+  // get login user data
+  const userData = await User.findById(req.me._id);
+
+  // check old Password
+  const passwordCheck = bcrypt.compareSync(oldPassword, userData.password);
+
+  if (!passwordCheck) {
+    return res.status(400).json({ message: "Wrong old password" });
+  }
+
+  // hashPass
+  const hassPassword = await bcrypt.hash(newPassword, 10);
+
+  // update old password
+  userData.password = hassPassword;
+  userData.save();
+  return res
+    .status(200)
+    .json({ user: userData, message: "Password Change Successfull" });
+});
+
+/**
+ * @description forgot password
+ * @method POST
+ * @access public
+ * @route api/v1/auth/forgot-password
+ */
+
+export const forgotpassword = asyncHandler(async (req, res) => {
+  const { auth } = req.body;
+
+  if (!auth) {
+    return res.status(400).json({ message: "Auth fields are required" });
+  }
+
+  // reset otp
+  const otp = createOTP();
+
+  let user = null;
+  if (isEmail(auth)) {
+    user = await User.findOne({ email: auth });
+
+    if (!user) {
+      return res.status(400).json({ message: "Email user not found" });
+    }
+  } else if (isMobile(auth)) {
+    user = await User.findOne({ phone: auth });
+
+    if (!user) {
+      return res.status(400).json({ message: "Mobile user not found" });
+    }
+  } else {
+    return res.status({ message: "User not found" });
+  }
+
+  const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+  user.password = null;
+  user.otpExpiresAt = otpExpiresAt;
+  user.accessToken = otp;
+  await user.save();
+
+  if (isEmail(auth)) {
+    await ForgotPasswordOtp(auth, { code: otp, link: "" });
+  } else if (isMobile) {
+    const { name, auth } = req.body;
+    const message = `Hi ${user.name}, Your forgot password OTP code: ${otp}. OTP is valid for 5 minutes.`;
+    await axios.get(`https://bulksmsbd.net/api/smsapi`, {
+      params: {
+        api_key: "9AmVeMs2GnbB1IS5H7FW",
+        type: "text",
+        number: auth,
+        senderid: "8809617612994",
+        message,
+      },
+    });
+  }
+
+  res.status(200).json({ user });
+});
+
+/**
+ * @description reset password
+ * @access public
+ * @method POST
+ * @route api/v1/auth/reset-password
+ */
+
+export const resetpassword = asyncHandler(async (req, res) => {
+  const { auth, otp, password } = req.body;
+
+  // all fields check
+  if (!auth || !otp || !password) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  let user = null;
+  if (isEmail(auth)) {
+    user = await User.findOne({ email: auth });
+
+    if (!user) {
+      return res.status(400).json({ message: "Email user not found" });
+    }
+  } else if (isMobile(auth)) {
+    user = await User.findOne({ phone: auth });
+
+    if (!user) {
+      return res.status(400).json({ message: "Mobile user not found" });
+    }
+  } else {
+    return res.status({ message: "User not found" });
+  }
+
+  // check otp
+  if (user.accessToken !== otp) {
+    return res.status(400).json({ message: "Wrong otp" });
+  }
   
+  // check otp time expired 
+  if(user.otpExpiresAt < new Date()){
+    user.accessToken = null;
+    user.otpExpiresAt = null;
+     await user.save();
 
+    return res.status(400).json({message : "Otp time expired again forgot password"});
+  }
 
-})
+  // hass password
+  const hassPassword = await bcrypt.hash(password, 10);
+  
+  user.password = hassPassword;
+  user.accessToken = null;
+  user.otpExpiresAt = null;
+  await user.save();
+
+  res.status(201).json({user, message : "Password reset successfull"});
+});
